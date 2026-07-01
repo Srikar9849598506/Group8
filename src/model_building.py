@@ -5,13 +5,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
 
 import mlflow
-import mlflow.sklearn
 import os
 import joblib
 
 
+# MLflow tracking (SQLite backend)
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+
 # load data
-preprocessed_data = pd.read_csv(r"data/preprocessed_data.csv")
+preprocessed_data = pd.read_csv("data/preprocessed_data.csv")
 
 scaler = StandardScaler()
 
@@ -19,13 +21,13 @@ scaler = StandardScaler()
 def build_model():
 
     if preprocessed_data is None or preprocessed_data.empty:
-        print("Data not found or empty")
+        print("❌ Data not found or empty")
         return
 
     # create folder for saving model
     os.makedirs("models", exist_ok=True)
 
-    # start MLflow experiment
+    # set experiment
     mlflow.set_experiment("XGBoost_Experiment")
 
     with mlflow.start_run():
@@ -51,45 +53,44 @@ def build_model():
             random_state=42
         )
 
-        # log params
-        mlflow.log_param("n_estimators", 200)
-        mlflow.log_param("max_depth", 6)
-        mlflow.log_param("learning_rate", 0.1)
-
         # train
         model = xgb_model.fit(X_train_scaled, y_train)
 
-        # predict
+        # predictions
         preds = model.predict(X_test_scaled)
 
         # accuracy
         acc = accuracy_score(y_test, preds)
 
+        # log params
+        mlflow.log_param("n_estimators", 200)
+        mlflow.log_param("max_depth", 6)
+        mlflow.log_param("learning_rate", 0.1)
+
         # log metric
         mlflow.log_metric("accuracy", acc)
 
         # ---------------------------
-        # 💾 SAVE MODEL LOCALLY
+        # SAVE MODEL + SCALER (CORRECT WAY)
         # ---------------------------
 
-        model_path = "models/xgb_model.pkl"
+        model_path = "models/xgb_model.json"
         scaler_path = "models/scaler.pkl"
 
-        joblib.dump(model, model_path)
+        model.save_model(model_path)
         joblib.dump(scaler, scaler_path)
 
-        print(f"Model saved at: {model_path}")
-        print(f"Scaler saved at: {scaler_path}")
+        # log artifacts to MLflow
+        mlflow.log_artifact(model_path)
+        mlflow.log_artifact(scaler_path)
 
-        # ---------------------------
-        # MLflow model logging
-        # ---------------------------
-        mlflow.sklearn.log_model(model, "model")
-
-        print("✅ Model trained and logged to MLflow")
-        print(f"Accuracy: {acc:.4f}")
+        print("✅ Model trained successfully")
+        print(f"📊 Accuracy: {acc:.4f}")
+        print(f"💾 Model saved at: {model_path}")
+        print(f"💾 Scaler saved at: {scaler_path}")
 
         return model
 
 
-build_model()
+if __name__ == "__main__":
+    build_model()
