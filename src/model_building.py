@@ -31,36 +31,34 @@ def build_model():
     preprocessed_data = load_data()
 
     if preprocessed_data.empty:
-        print("❌ Data is empty")
-        return None
+        raise ValueError("Dataset is empty")
 
     # create model folder
     os.makedirs("models", exist_ok=True)
 
     scaler = StandardScaler()
 
+    X = preprocessed_data.drop(columns=["binary_label"]).astype(float)
+    y = preprocessed_data["binary_label"]
+
+    # split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    # scaling
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # model
+    model = XGBClassifier(
+        n_estimators=200,
+        max_depth=6,
+        learning_rate=0.1,
+        random_state=42
+    )
+
     with mlflow.start_run():
-
-        # features and target
-        X = preprocessed_data.drop(columns=["binary_label"]).astype(float)
-        y = preprocessed_data["binary_label"]
-
-        # split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-
-        # scaling
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-
-        # model
-        model = XGBClassifier(
-            n_estimators=200,
-            max_depth=6,
-            learning_rate=0.1,
-            random_state=42
-        )
 
         # train
         model.fit(X_train_scaled, y_train)
@@ -71,20 +69,18 @@ def build_model():
         # accuracy
         acc = accuracy_score(y_test, preds)
 
-        # log params
+        # logs
         mlflow.log_param("n_estimators", 200)
         mlflow.log_param("max_depth", 6)
         mlflow.log_param("learning_rate", 0.1)
-
-        # log metric
         mlflow.log_metric("accuracy", acc)
 
         # =========================
-        # SAVE ARTIFACTS
+        # SAVE ARTIFACTS (CROSS PLATFORM SAFE)
         # =========================
 
-        model_path = "models/xgb_model.json"
-        scaler_path = "models/scaler.pkl"
+        model_path = os.path.join("models", "xgb_model.json")
+        scaler_path = os.path.join("models", "scaler.pkl")
 
         model.save_model(model_path)
         joblib.dump(scaler, scaler_path)
@@ -94,8 +90,6 @@ def build_model():
 
         print("✅ Model trained successfully")
         print(f"📊 Accuracy: {acc:.4f}")
-        print(f"💾 Model saved at: {model_path}")
-        print(f"💾 Scaler saved at: {scaler_path}")
 
         return model, acc
 
