@@ -11,7 +11,7 @@ import joblib
 
 
 # load data
-preprocessed_data = pd.read_csv(r"data\preprocessed_data.csv")
+preprocessed_data = pd.read_csv(r"data/preprocessed_data.csv")
 
 scaler = StandardScaler()
 

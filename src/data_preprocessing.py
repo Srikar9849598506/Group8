@@ -50,7 +50,7 @@ columns = [
 
 
 def data_preprocessing():
-    data= pd.read_csv(r"data\ingested_data.csv")
+    data= pd.read_csv(r"data/ingested_data.csv")
     updated_columns= data[columns]
     return updated_columns
 
