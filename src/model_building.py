@@ -9,26 +9,35 @@ import os
 import joblib
 
 
-# MLflow tracking (SQLite backend)
+# =========================
+# MLflow setup (CI SAFE)
+# =========================
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("XGBoost_Experiment")
 
-# load data
-preprocessed_data = pd.read_csv("data/preprocessed_data.csv")
 
-scaler = StandardScaler()
+def load_data():
+    """Load data safely for CI/CD"""
+    path = "data/preprocessed_data.csv"
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Dataset not found at {path}")
+
+    return pd.read_csv(path)
 
 
 def build_model():
 
-    if preprocessed_data is None or preprocessed_data.empty:
-        print("❌ Data not found or empty")
-        return
+    preprocessed_data = load_data()
 
-    # create folder for saving model
+    if preprocessed_data.empty:
+        print("❌ Data is empty")
+        return None
+
+    # create model folder
     os.makedirs("models", exist_ok=True)
 
-    # set experiment
-    mlflow.set_experiment("XGBoost_Experiment")
+    scaler = StandardScaler()
 
     with mlflow.start_run():
 
@@ -46,7 +55,7 @@ def build_model():
         X_test_scaled = scaler.transform(X_test)
 
         # model
-        xgb_model = XGBClassifier(
+        model = XGBClassifier(
             n_estimators=200,
             max_depth=6,
             learning_rate=0.1,
@@ -54,7 +63,7 @@ def build_model():
         )
 
         # train
-        model = xgb_model.fit(X_train_scaled, y_train)
+        model.fit(X_train_scaled, y_train)
 
         # predictions
         preds = model.predict(X_test_scaled)
@@ -70,9 +79,9 @@ def build_model():
         # log metric
         mlflow.log_metric("accuracy", acc)
 
-        # ---------------------------
-        # SAVE MODEL + SCALER (CORRECT WAY)
-        # ---------------------------
+        # =========================
+        # SAVE ARTIFACTS
+        # =========================
 
         model_path = "models/xgb_model.json"
         scaler_path = "models/scaler.pkl"
@@ -80,7 +89,6 @@ def build_model():
         model.save_model(model_path)
         joblib.dump(scaler, scaler_path)
 
-        # log artifacts to MLflow
         mlflow.log_artifact(model_path)
         mlflow.log_artifact(scaler_path)
 
@@ -89,7 +97,7 @@ def build_model():
         print(f"💾 Model saved at: {model_path}")
         print(f"💾 Scaler saved at: {scaler_path}")
 
-        return model
+        return model, acc
 
 
 if __name__ == "__main__":
